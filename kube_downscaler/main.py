@@ -157,7 +157,7 @@ def autoscale_resources(api, kind, namespace: str,
         autoscale_resource(resource, default_uptime, default_downtime, forced_uptime, dry_run, now, grace_period)
 
 
-def autoscale(namespace: str, default_uptime: str, default_downtime: str,
+def autoscale(namespace: str, default_uptime: str, default_downtime: str, kinds: FrozenSet[str],
               exclude_namespaces: FrozenSet[str], exclude_deployments: FrozenSet[str], dry_run: bool,
               grace_period: int):
     api = get_kube_api()
@@ -165,10 +165,12 @@ def autoscale(namespace: str, default_uptime: str, default_downtime: str,
     now = datetime.datetime.utcnow()
     forced_uptime = pods_force_uptime(api, namespace)
 
-    autoscale_resources(api, Deployment, namespace, exclude_namespaces, exclude_deployments,
-                        default_uptime, default_downtime, forced_uptime, dry_run, now, grace_period)
-    autoscale_resources(api, Statefulset, namespace, exclude_namespaces, exclude_deployments,
-                        default_uptime, default_downtime, forced_uptime, dry_run, now, grace_period)
+    if 'deployment' in kinds:
+        autoscale_resources(api, Deployment, namespace, exclude_namespaces, exclude_deployments,
+                            default_uptime, default_downtime, forced_uptime, dry_run, now, grace_period)
+    if 'statefulset' in kinds:
+        autoscale_resources(api, Statefulset, namespace, exclude_namespaces, frozenset(),
+                            default_uptime, default_downtime, forced_uptime, dry_run, now, grace_period)
 
 
 class GracefulShutdown:
@@ -199,6 +201,8 @@ def main():
     parser.add_argument('--once', help='Run loop only once and exit', action='store_true')
     parser.add_argument('--interval', type=int, help='Loop interval (default: 30s)', default=30)
     parser.add_argument('--namespace', help='Namespace')
+    parser.add_argument('--kind', choices=['deployment', 'statefulset'], nargs='+', default=['deployment'],
+                        help='Downscale resources of this kind (default: deployment)')
     parser.add_argument('--grace-period', type=int,
                         help='Grace period in seconds for deployments before scaling down (default: 15min)',
                         default=900)
@@ -225,7 +229,7 @@ def main():
 
     while True:
         try:
-            autoscale(args.namespace, args.default_uptime, args.default_downtime,
+            autoscale(args.namespace, args.default_uptime, args.default_downtime, frozenset(args.kind),
                       frozenset(args.exclude_namespaces.split(',')), frozenset(args.exclude_deployments.split(',')),
                       dry_run=args.dry_run, grace_period=args.grace_period)
         except Exception:
