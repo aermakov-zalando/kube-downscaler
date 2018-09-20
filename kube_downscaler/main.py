@@ -158,8 +158,10 @@ def autoscale_resources(api, kind, namespace: str,
 
 
 def autoscale(namespace: str, default_uptime: str, default_downtime: str, kinds: FrozenSet[str],
-              exclude_namespaces: FrozenSet[str], exclude_deployments: FrozenSet[str], dry_run: bool,
-              grace_period: int):
+              exclude_namespaces: FrozenSet[str],
+              exclude_deployments: FrozenSet[str],
+              exclude_statefulsets: FrozenSet[str],
+              dry_run: bool, grace_period: int):
     api = get_kube_api()
 
     now = datetime.datetime.utcnow()
@@ -169,7 +171,7 @@ def autoscale(namespace: str, default_uptime: str, default_downtime: str, kinds:
         autoscale_resources(api, Deployment, namespace, exclude_namespaces, exclude_deployments,
                             default_uptime, default_downtime, forced_uptime, dry_run, now, grace_period)
     if 'statefulset' in kinds:
-        autoscale_resources(api, Statefulset, namespace, exclude_namespaces, frozenset(),
+        autoscale_resources(api, Statefulset, namespace, exclude_namespaces, exclude_statefulsets,
                             default_uptime, default_downtime, forced_uptime, dry_run, now, grace_period)
 
 
@@ -215,6 +217,10 @@ def main():
     parser.add_argument('--exclude-deployments',
                         help='Exclude specific deployments from downscaling (default: kube-downscaler,downscaler)',
                         default=os.getenv('EXCLUDE_DEPLOYMENTS', 'kube-downscaler,downscaler'))
+    parser.add_argument('--exclude-statefulsets',
+                        help='Exclude specific statefulsets from downscaling',
+                        default=os.getenv('EXCLUDE_STATEFULSETS', ''))
+
     args = parser.parse_args()
 
     logging.basicConfig(format='%(asctime)s %(levelname)s: %(message)s',
@@ -229,8 +235,11 @@ def main():
 
     while True:
         try:
-            autoscale(args.namespace, args.default_uptime, args.default_downtime, frozenset(args.kind),
-                      frozenset(args.exclude_namespaces.split(',')), frozenset(args.exclude_deployments.split(',')),
+            autoscale(args.namespace, args.default_uptime, args.default_downtime,
+                      kinds=frozenset(args.kind),
+                      exclude_namespaces=frozenset(args.exclude_namespaces.split(',')),
+                      exclude_deployments=frozenset(args.exclude_deployments.split(',')),
+                      exclude_statefulsets=frozenset(args.exclude_statefulsets.split(',')),
                       dry_run=args.dry_run, grace_period=args.grace_period)
         except Exception:
             logger.exception('Failed to autoscale')
