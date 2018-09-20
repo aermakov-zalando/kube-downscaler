@@ -9,7 +9,7 @@ import re
 import signal
 import sys
 import time
-from typing import FrozenSet, Generator
+from typing import FrozenSet
 
 import pykube
 import pytz
